@@ -1,160 +1,199 @@
-#Definir pasta de trabalho
-setwd("C:/Users/Belle/Documents/Belle - Nanosight")
+#=============================================================================#
+#   SCRIPT DE ANÁLISE COMPLETO E FINAL - VERSÃO 14 (LÓGICA V13 + GRÁFICOS V12) #
+#=============================================================================#
 
-#Testes de normalidade (premissa para o ANOVA)
-shapiro_tamanho_w1 <- shapiro.test(nanosight_intersect_conc_nan_w1$tamanho_mean_average) #p 0.0059
-shapiro_tamanho_w2 <- shapiro.test(nanosight_intersect_conc_nan_w2$tamanho_mean_average) #p 0.0704 [NORMAL]
-shapiro_porcentagem_w1 <- shapiro.test(nanosight_intersect_conc_nan_w1$EV_pequenas_porcentagem) #p 9.05e-09
-shapiro_porcentagem_w2 <- shapiro.test(nanosight_intersect_conc_nan_w2$EV_pequenas_porcentagem) #p 7.86e-10
-shapiro_concentracao_w1 <- shapiro.test(nanosight_intersect_conc_nan_w1$concentracao_average) #p 3.09e-07
-shapiro_concentracao_w2 <- shapiro.test(nanosight_intersect_conc_nan_w2$concentracao_average) #p 7.99e-07
+#-------------------------------------------------------------------------------
+# SECÇÃO -1: DEFINIR O DIRETÓRIO DE TRABALHO
+#-------------------------------------------------------------------------------
+# !!! IMPORTANTE: EDITE ESTA LINHA !!!
+project_directory <- "D:/vesiculas/"
+tryCatch({ setwd(project_directory); cat("Working directory successfully set to:\n", getwd(), "\n\n")}, 
+         error = function(e) { stop("ERROR: The specified directory was not found. Please check the path.") })
 
-#Testes de homogeneidade de variâncias (premissa para o ANOVA)
-modelo_w1_mean <- aov(tamanho_mean_average~Trajetoria, data = nanosight_intersect_conc_nan_w1)
-levene_w1_mean <- leveneTest(modelo_w1_mean) #p = 0.004790367
-modelo_w2_mean <- aov(tamanho_mean_average~Trajetoria, data = nanosight_intersect_conc_nan_w2)
-levene_w2_mean <- leveneTest(modelo_w2_mean) #p = 0.1519675 [HOMOGÊNEO]
-modelo_w1_porcentagem <- aov(EV_pequenas_porcentagem~Trajetoria, data = nanosight_intersect_conc_nan_w1)
-levene_w1_porcentagem <- leveneTest(modelo_w1_porcentagem) #p = 0.0002329829
-modelo_w2_porcentagem <- aov(EV_pequenas_porcentagem~Trajetoria, data = nanosight_intersect_conc_nan_w2)
-levene_w2_porcentagem <- leveneTest(modelo_w2_porcentagem) #p = 0.01346372
-modelo_w1_concentracao <- aov(concentracao_real~Trajetoria, data = nanosight_intersect_conc_nan_w1)
-levene_w1_concentracao <- leveneTest(modelo_w1_concentracao) #p = 0.2936355 [HOMOGÊNEO]
-modelo_w2_concentracao <- aov(concentracao_real~Trajetoria, data = nanosight_intersect_conc_nan_w2)
-levene_w2_concentracao <- leveneTest(modelo_w2_concentracao) #p = 0.1667132 [HOMOGÊNEO]
+#-------------------------------------------------------------------------------
+# SECÇÃO 0: CONFIGURAÇÃO DO AMBIENTE E PACOTES
+#-------------------------------------------------------------------------------
+cat("--- SECTION 0: SETTING UP THE ENVIRONMENT ---\n")
+pacotes_necessarios <- c("lme4", "lmerTest", "glmmTMB", "car", "emmeans", 
+                         "performance", "DHARMa")
+for (pacote in pacotes_necessarios) {
+  if (!require(pacote, character.only = TRUE)) {
+    install.packages(pacote, dependencies = TRUE); library(pacote, character.only = TRUE)
+  }
+}
+if (!dir.exists("analysis_results")) { dir.create("analysis_results") }
+cat("Packages loaded and results directory is ready.\n\n")
 
-#Realizando ANOVA
-library(emmeans)
-# Ajuste do modelo ANOVA para usar com emmeans
-modelo_aov_mean_w1 <- aov(tamanho_mean_average ~ Trajetoria, data = nanosight_intersect_conc_nan_w1)
-modelo_aov_mean_w2 <- aov(tamanho_mean_average ~ Trajetoria, data = nanosight_intersect_conc_nan_w2)
-modelo_aov_porcentagem_w1 <- aov(EV_pequenas_porcentagem ~ Trajetoria, data = nanosight_intersect_conc_nan_w1)
-modelo_aov_porcentagem_w2 <- aov(EV_pequenas_porcentagem ~ Trajetoria, data = nanosight_intersect_conc_nan_w2)
-modelo_aov_concentracao_w1 <- aov(concentracao_average ~ Trajetoria, data = nanosight_intersect_conc_nan_w1)
-modelo_aov_concentracao_w2 <- aov(concentracao_average ~ Trajetoria, data = nanosight_intersect_conc_nan_w2)
+#-------------------------------------------------------------------------------
+# SECÇÃO 0.5: CONFIGURAR O FICHEIRO DE LOG
+#-------------------------------------------------------------------------------
+log_file_name <- paste0("analysis_results/log_analise_", Sys.Date(), ".txt")
+sink(log_file_name, append = FALSE, split = TRUE) # 'split = TRUE' mostra a saída na consola E guarda no ficheiro
 
-# Comparações post-hoc
-posthoc_mean_w1 <- emmeans(modelo_aov_mean_w1, pairwise ~ Trajetoria)
-posthoc_mean_w2 <- emmeans(modelo_aov_mean_w2, pairwise ~ Trajetoria)
-posthoc_porcentagem_w1 <- emmeans(modelo_aov_porcentagem_w1, pairwise ~ Trajetoria)
-posthoc_porcentagem_w2 <- emmeans(modelo_aov_porcentagem_w2, pairwise ~ Trajetoria)
-posthoc_concentracao_w1 <- emmeans(modelo_aov_concentracao_w1, pairwise ~ Trajetoria)
-posthoc_concentracao_w2 <- emmeans(modelo_aov_concentracao_w2, pairwise ~ Trajetoria)
+cat("### INÍCIO DO LOG DE ANÁLISE ###\n")
+cat("Data e Hora:", as.character(Sys.time()), "\n")
+cat("Diretório de Trabalho:", getwd(), "\n\n")
 
-#### Análises corrigindo para o efeito batch
-##ANOVA robusta de 2 vias
-#tamanho/batch/trajetoria na w1
-anova_tam_batch_traj_w1 <- aov(tamanho_mean_average ~ Trajetoria * batch_nan, data = nanosight_intersect_conc_nan_w1)
-summary_anova_tam_batch_traj_w1 <- summary(anova_tam_batch_traj_w1)
-anova_df_tam_batch_traj_w1 <- as.data.frame(summary_anova_tam_batch_traj_w1[[1]])
-#tamanho/batch/trajetoria na w2
-anova_tam_batch_traj_w2 <- aov(tamanho_mean_average ~ Trajetoria * batch_nan, data = nanosight_intersect_conc_nan_w2)
-summary_anova_tam_batch_traj_w2 <- summary(anova_tam_batch_traj_w2)
-anova_df_tam_batch_traj_w2 <- as.data.frame(summary_anova_tam_batch_traj_w2[[1]])
-#porcentagem/batch/trajetoria na w1
-anova_porc_batch_traj_w1 <- aov(EV_pequenas_porcentagem ~ Trajetoria * batch_nan, data = nanosight_intersect_conc_nan_w1)
-summary_anova_porc_batch_traj_w1 <- summary(anova_porc_batch_traj_w1)
-anova_df_porc_batch_traj_w1 <- as.data.frame(summary_anova_porc_batch_traj_w1[[1]])
-#porcentagem/batch/trajetoria na w2
-anova_porc_batch_traj_w2 <- aov(EV_pequenas_porcentagem ~ Trajetoria * batch_nan, data = nanosight_intersect_conc_nan_w2)
-summary_anova_porc_batch_traj_w2 <- summary(anova_porc_batch_traj_w2)
-anova_df_porc_batch_traj_w2 <- as.data.frame(summary_anova_porc_batch_traj_w2[[1]])
-#concentração/batch/trajetoria na w1
-anova_conc_batch_traj_w1 <- aov(concentracao_average ~ Trajetoria * batch_nan, data = nanosight_intersect_conc_nan_w1)
-summary_anova_conc_batch_traj_w1 <- summary(anova_conc_batch_traj_w1)
-anova_df_conc_batch_traj_w1 <- as.data.frame(summary_anova_conc_batch_traj_w1[[1]])
-#concentração/batch/trajetoria na w2
-anova_conc_batch_traj_w2 <- aov(concentracao_average ~ Trajetoria * batch_nan, data = nanosight_intersect_conc_nan_w2)
-summary_anova_conc_batch_traj_w2 <- summary(anova_conc_batch_traj_w2)
-anova_df_conc_batch_traj_w2 <- as.data.frame(summary_anova_conc_batch_traj_w2[[1]])
+# Usar tryCatch para garantir que o log é sempre fechado, mesmo se ocorrer um erro
+tryCatch({
+  
+  #-------------------------------------------------------------------------------
+  # SECÇÃO 1: CARREGAMENTO E PREPARAÇÃO DOS DADOS
+  #-------------------------------------------------------------------------------
+  cat("--- SECTION 1: LOADING AND PREPARING DATA ---\n")
+  tryCatch({
+    nanosight_intersect <- read.csv("nanosight_intersect.csv")
+    cat("File 'nanosight_intersect.csv' loaded successfully.\n")
+    nanosight_intersect$Trajetoria <- as.factor(nanosight_intersect$Trajetoria)
+    nanosight_intersect$wave <- as.factor(nanosight_intersect$wave)
+    nanosight_intersect$subjectid <- as.factor(nanosight_intersect$subjectid)
+  }, error = function(e) {
+    stop("ERROR: File 'nanosight_intersect.csv' not found. Ensure it is in your working directory.")
+  })
+  cat("Verifying and transforming the percentage variable...\n")
+  if (any(nanosight_intersect$EV_pequenas_porcentagem == 0, na.rm = TRUE) || any(nanosight_intersect$EV_pequenas_porcentagem == 100, na.rm = TRUE)) {
+    cat("Values of 0 or 100 detected. Applying transformation for the Beta model.\n")
+    n <- nrow(nanosight_intersect)
+    nanosight_intersect$percentage_prop <- (nanosight_intersect$EV_pequenas_porcentagem * (n - 1) + 0.5) / n
+  } else {
+    cat("No 0 or 100 values detected. Using simple division by 100.\n")
+    nanosight_intersect$percentage_prop <- nanosight_intersect$EV_pequenas_porcentagem / 100
+  }
+  cat("Data preparation complete.\n\n")
+  
+  #-------------------------------------------------------------------------------
+  # FUNÇÕES AUXILIARES
+  #-------------------------------------------------------------------------------
+  # Função para criar tabela de diagnóstico DHARMa (APENAS TESTES DO QQ PLOT)
+  criar_tabela_diagnostico_dharma_qq <- function(simulationOutput) {
+    alfa <- 0.05
+    teste_uniformidade <- testUniformity(simulationOutput, plot = FALSE); teste_dispersao <- testDispersion(simulationOutput, plot = FALSE); teste_outliers <- testOutliers(simulationOutput, plot = FALSE)
+    tabela <- data.frame(Diagnostic_Test = c("Overall Uniformity (KS)", "Dispersion", "Outliers"), p_value = c(round(teste_uniformidade$p.value, 3), round(teste_dispersao$p.value, 3), round(teste_outliers$p.value, 3)))
+    tabela$Significance <- ifelse(tabela$p_value < alfa, "Significant Violation", "OK")
+    return(tabela)
+  }
+  
+  resultados_finais_aic_bic <- data.frame()
+  alfa <- 0.05 
+  
+  #===============================================================================#
+  # MODELO 1: ANÁLISE DO TAMANHO MÉDIO DAS VEs (Size)
+  #===============================================================================#
+  cat("\n\n=========================================================\n"); cat("  ANALYSIS 1: EV MEAN SIZE (tamanho_mean_average)\n"); cat("=========================================================\n\n")
+  cat("--- 1.1. Comparing Gaussian (LMM) and Gamma (GLMM) models ---\n")
+  modelo_size_gaussiano <- lmer(tamanho_mean_average ~ wave * Trajetoria + (1 | subjectid), data = nanosight_intersect)
+  modelo_size_gamma <- glmmTMB(tamanho_mean_average ~ wave * Trajetoria + (1 | subjectid), data = nanosight_intersect, family = Gamma(link = "log"))
+  tabela_comp_size <- data.frame(Model = c("Gaussian (LMM)", "Gamma (GLMM)"), AIC = c(AIC(modelo_size_gaussiano), AIC(modelo_size_gamma)), BIC = c(BIC(modelo_size_gaussiano), BIC(modelo_size_gamma)))
+  print(tabela_comp_size); write.csv(tabela_comp_size, "analysis_results/table_model_comparison_size.csv", row.names = FALSE)
+  cat("\n--- 1.2. DHARMa Residual Diagnostics for BOTH models ---\n")
+  residuos_gamma <- simulateResiduals(fittedModel = modelo_size_gamma); tabela_diag_gamma <- criar_tabela_diagnostico_dharma_qq(residuos_gamma)
+  png("analysis_results/plot_diagnostics_size_GAMMA.png", width = 1000, height = 500); par(mfrow = c(1, 2)); plotQQunif(residuos_gamma, main = "A) QQ Plot - Size (Gamma)", testUniformity = FALSE, testDispersion = FALSE, testOutliers = FALSE); plotResiduals(residuos_gamma, main = "B) Residuals vs. Predicted - Size (Gamma)"); dev.off()
+  cat("Diagnostics for Gamma Model:\n"); print(tabela_diag_gamma); write.csv(tabela_diag_gamma, "analysis_results/table_diagnostics_dharma_size_GAMMA.csv", row.names = FALSE)
+  residuos_gaussiano <- simulateResiduals(fittedModel = modelo_size_gaussiano); tabela_diag_gaussiano <- criar_tabela_diagnostico_dharma_qq(residuos_gaussiano)
+  png("analysis_results/plot_diagnostics_size_GAUSSIAN.png", width = 1000, height = 500); par(mfrow = c(1, 2)); plotQQunif(residuos_gaussiano, main = "A) QQ Plot - Size (Gaussian)", testUniformity = FALSE, testDispersion = FALSE, testOutliers = FALSE); plotResiduals(residuos_gaussiano, main = "B) Residuals vs. Predicted - Size (Gaussian)"); dev.off()
+  cat("\nDiagnostics for Gaussian Model:\n"); print(tabela_diag_gaussiano); write.csv(tabela_diag_gaussiano, "analysis_results/table_diagnostics_dharma_size_GAUSSIAN.csv", row.names = FALSE)
+  modelo_size <- modelo_size_gaussiano
+  cat("\nFinal Model Selected: Gaussian (LMM), based on lower AIC/BIC and adequate diagnostics.\n")
+  resultados_finais_aic_bic <- rbind(resultados_finais_aic_bic, data.frame(Variable = "Size", Model = "Gaussian (LMM)", AIC = AIC(modelo_size), BIC = BIC(modelo_size)))
+  cat("\n--- 1.3. ANOVA Table (Type III) for Size ---\n")
+  anova_size <- anova(modelo_size, type = 3); df_anova_size <- as.data.frame(anova_size); df_anova_size$Significance <- ifelse(df_anova_size$`Pr(>F)` < alfa, "Significant", "Not Significant"); print(df_anova_size); write.csv(df_anova_size, "analysis_results/table_anova_size.csv")
+  cat("\n--- 1.4. Conditional Pairwise Comparisons (Size) ---\n")
+  p_interacao_size <- df_anova_size["wave:Trajetoria", "Pr(>F)"]
+  if (p_interacao_size < 0.05) {
+    cat("Interaction is significant. Performing contrasts for BOTH interaction perspectives.\n")
+    emm_size_p1 <- emmeans(modelo_size, specs = pairwise ~ Trajetoria | wave, adjust = "tukey"); df_emm_size_p1 <- as.data.frame(emm_size_p1$contrasts); df_emm_size_p1$Significance <- ifelse(df_emm_size_p1$p.value < alfa, "Significant", "Not Significant"); print(df_emm_size_p1); write.csv(df_emm_size_p1, "analysis_results/table_contrasts_perspective1_size.csv", row.names = FALSE)
+    emm_size_p2 <- emmeans(modelo_size, specs = pairwise ~ wave | Trajetoria, adjust = "tukey"); df_emm_size_p2 <- as.data.frame(emm_size_p2$contrasts); df_emm_size_p2$Significance <- ifelse(df_emm_size_p2$p.value < alfa, "Significant", "Not Significant"); print(df_emm_size_p2); write.csv(df_emm_size_p2, "analysis_results/table_contrasts_perspective2_size.csv", row.names = FALSE)
+  } else {
+    cat("Interaction is not significant. Proceeding to analyze main effects with a Type II ANOVA.\n")
+    anova_size_type2 <- anova(modelo_size, type = 2); print(anova_size_type2)
+    if (anova_size_type2["wave", "Pr(>F)"] < 0.05) { emm_size_wave <- emmeans(modelo_size, specs = pairwise ~ wave, adjust = "tukey"); df_emm_size_wave <- as.data.frame(emm_size_wave$contrasts); df_emm_size_wave$Significance <- ifelse(df_emm_size_wave$p.value < alfa, "Significant", "Not Significant"); print(df_emm_size_wave); write.csv(df_emm_size_wave, "analysis_results/table_contrasts_wave_size.csv", row.names = FALSE) }
+    if (anova_size_type2["Trajetoria", "Pr(>F)"] < 0.05) { emm_size_traj <- emmeans(modelo_size, specs = pairwise ~ Trajetoria, adjust = "tukey"); df_emm_size_traj <- as.data.frame(emm_size_traj$contrasts); df_emm_size_traj$Significance <- ifelse(df_emm_size_traj$p.value < alfa, "Significant", "Not Significant"); print(df_emm_size_traj); write.csv(df_emm_size_traj, "analysis_results/table_contrasts_trajectory_size.csv", row.names = FALSE) }
+  }
+  cat("\n--- 1.5. Model Diagnostics (Size) ---\n")
+  cat("Assessing VIF on a model without the interaction term to prevent artificial inflation:\n")
+  modelo_size_vif <- lmer(tamanho_mean_average ~ wave + Trajetoria + (1 | subjectid), data = nanosight_intersect)
+  vif_df_size <- as.data.frame(check_collinearity(modelo_size_vif)); vif_df_size$Interpretation <- ifelse(vif_df_size$VIF >= 10, "High", ifelse(vif_df_size$VIF >= 5, "Moderate", "Low")); icc_size <- icc(modelo_size)
+  cat("VIF:\n"); print(vif_df_size); write.csv(vif_df_size, "analysis_results/table_vif_size.csv", row.names = FALSE)
+  cat("\nICC:\n"); print(icc_size)
+  
+  #===============================================================================#
+  # MODELO 2: ANÁLISE DA CONCENTRAÇÃO DAS VEs
+  #===============================================================================#
+  cat("\n\n====================================================================\n"); cat("  ANALYSIS 2: EV CONCENTRATION (concentracao_real)\n"); cat("====================================================================\n\n")
+  cat("--- 2.1. Model Simplification Process for Concentration ---\n")
+  modelo_conc <- NULL; cat("\nAttempt 1: Full Negative Binomial GLMM...\n")
+  modelo_conc_tentativa1 <- tryCatch({glmmTMB(concentracao_real ~ wave * Trajetoria + (1 | subjectid), data = nanosight_intersect, family = nbinom2(link = "log"))}, warning = function(w) {cat("CONVERGENCE WARNING in Attempt 1:\n", conditionMessage(w), "\n"); return(NULL)}, error = function(e) {cat("CONVERGENCE ERROR in Attempt 1:\n", conditionMessage(e), "\n"); return(NULL)})
+  if (is.null(modelo_conc_tentativa1)) {cat("\nAttempt 2: Negative Binomial GLMM (main effects only)...\n"); modelo_conc_tentativa2 <- tryCatch({glmmTMB(concentracao_real ~ wave + Trajetoria + (1 | subjectid), data = nanosight_intersect, family = nbinom1(link = "log"))}, warning = function(w) {cat("CONVERGENCE WARNING in Attempt 2:\n", conditionMessage(w), "\n"); return(NULL)}, error = function(e) {cat("CONVERGENCE ERROR in Attempt 2:\n", conditionMessage(e), "\n"); return(NULL)})}
+  if(is.null(modelo_conc_tentativa1) && is.null(modelo_conc_tentativa2)) {cat("\nBoth mixed models failed. Selecting final model: GLM with main effects only.\n"); modelo_conc <- glmmTMB(concentracao_real ~ wave + Trajetoria, data = nanosight_intersect, family = nbinom1(link = "log"))}
+  resultados_finais_aic_bic <- rbind(resultados_finais_aic_bic, data.frame(Variable = "Concentration", Model = "Negative Binomial (GLM)", AIC = AIC(modelo_conc), BIC = BIC(modelo_conc)))
+  cat("\n--- 2.2. ANOVA Table (Type II) for Concentration ---\n")
+  anova_conc <- Anova(modelo_conc, type = "II"); df_anova_conc <- as.data.frame(anova_conc); df_anova_conc$Significance <- ifelse(df_anova_conc$`Pr(>Chisq)` < alfa, "Significant", "Not Significant"); print(df_anova_conc); write.csv(df_anova_conc, "analysis_results/table_anova_concentration.csv")
+  cat("\n--- 2.3. Pairwise Comparisons for Main Effects (Concentration) ---\n")
+  if (df_anova_conc["wave", "Pr(>Chisq)"] < 0.05) {cat("Main effect of 'wave' is significant. Performing contrasts.\n"); emm_conc_wave <- emmeans(modelo_conc, specs = pairwise ~ wave, adjust = "tukey"); df_emm_conc_wave <- as.data.frame(emm_conc_wave$contrasts); df_emm_conc_wave$Significance <- ifelse(df_emm_conc_wave$p.value < alfa, "Significant", "Not Significant"); print(df_emm_conc_wave); write.csv(df_emm_conc_wave, "analysis_results/table_contrasts_wave_concentration.csv", row.names = FALSE)}
+  if (df_anova_conc["Trajetoria", "Pr(>Chisq)"] < 0.05) {cat("\nMain effect of 'Trajetoria' is significant. Performing contrasts.\n"); emm_conc_traj <- emmeans(modelo_conc, specs = pairwise ~ Trajetoria, adjust = "tukey"); df_emm_conc_traj <- as.data.frame(emm_conc_traj$contrasts); df_emm_conc_traj$Significance <- ifelse(df_emm_conc_traj$p.value < alfa, "Significant", "Not Significant"); print(df_emm_conc_traj); write.csv(df_emm_conc_traj, "analysis_results/table_contrasts_trajectory_concentration.csv", row.names = FALSE)}
+  cat("\n--- 2.4. Model Diagnostics (Concentration) ---\n")
+  vif_df_conc <- as.data.frame(check_collinearity(modelo_conc)); vif_df_conc$Interpretation <- ifelse(vif_df_conc$VIF >= 10, "High", ifelse(vif_df_conc$VIF >= 5, "Moderate", "Low"));
+  cat("VIF:\n"); print(vif_df_conc); write.csv(vif_df_conc, "analysis_results/table_vif_concentration.csv", row.names = FALSE); cat("\nICC:\nNot applicable (GLM without random effects).\n")
+  cat("\n--- 2.5. DHARMa Residual Diagnostics (Concentration) ---\n")
+  residuos_conc <- simulateResiduals(fittedModel = modelo_conc); tabela_diag_conc <- criar_tabela_diagnostico_dharma_qq(residuos_conc)
+  png("analysis_results/plot_diagnostics_concentration.png", width = 1000, height = 500); par(mfrow = c(1, 2)); plotQQunif(residuos_conc, main = "A) QQ Plot - Concentration", testUniformity = FALSE, testDispersion = FALSE, testOutliers = FALSE); plotResiduals(residuos_conc, main = "B) Residuals vs. Predicted - Concentration"); dev.off()
+  print(tabela_diag_conc); write.csv(tabela_diag_conc, "analysis_results/table_diagnostics_dharma_concentration.csv", row.names = FALSE)
+  
+  #===============================================================================#
+  # MODELO 3: ANÁLISE DA PERCENTAGEM DE VEs PEQUENAS
+  #===============================================================================#
+  cat("\n\n======================================================================\n"); cat("  ANALYSIS 3: PERCENTAGE OF SMALL EVs (EV_pequenas_porcentagem)\n"); cat("======================================================================\n\n")
+  cat("--- 3.1. Fitting the Beta GLMM for Percentage ---\n")
+  modelo_perc <- glmmTMB(percentage_prop ~ wave * Trajetoria + (1 | subjectid), data = nanosight_intersect, family = beta_family(link = "logit"))
+  resultados_finais_aic_bic <- rbind(resultados_finais_aic_bic, data.frame(Variable = "Percentage", Model = "Beta (GLMM)", AIC = AIC(modelo_perc), BIC = BIC(modelo_perc)))
+  cat("\n--- 3.2. ANOVA Table (Type III) for Percentage ---\n")
+  anova_perc_type3 <- Anova(modelo_perc, type = "III"); df_anova_perc3 <- as.data.frame(anova_perc_type3); df_anova_perc3$Significance <- ifelse(df_anova_perc3$`Pr(>Chisq)` < alfa, "Significant", "Not Significant"); print(df_anova_perc3); write.csv(df_anova_perc3, "analysis_results/table_anova_percentage.csv")
+  cat("\n--- 3.3. Conditional Pairwise Comparisons (Percentage) ---\n")
+  p_interacao_perc <- df_anova_perc3["wave:Trajetoria", "Pr(>Chisq)"]
+  if (p_interacao_perc < 0.05) {
+    cat("Interaction is significant. Analyzing both perspectives.\n")
+    emm_perc_p1 <- emmeans(modelo_perc, specs = pairwise ~ Trajetoria | wave, adjust = "tukey"); df_emm_perc_p1 <- as.data.frame(emm_perc_p1$contrasts); df_emm_perc_p1$Significance <- ifelse(df_emm_perc_p1$p.value < alfa, "Significant", "Not Significant"); print(df_emm_perc_p1); write.csv(df_emm_perc_p1, "analysis_results/table_contrasts_perspective1_percentage.csv", row.names = FALSE)
+    emm_perc_p2 <- emmeans(modelo_perc, specs = pairwise ~ wave | Trajetoria, adjust = "tukey"); df_emm_perc_p2 <- as.data.frame(emm_perc_p2$contrasts); df_emm_perc_p2$Significance <- ifelse(df_emm_perc_p2$p.value < alfa, "Significant", "Not Significant"); print(df_emm_perc_p2); write.csv(df_emm_perc_p2, "analysis_results/table_contrasts_perspective2_percentage.csv", row.names = FALSE)
+  } else {
+    cat("Interaction is not significant. Analyzing main effects with a Type II ANOVA.\n")
+    anova_perc_type2 <- Anova(modelo_perc, type = "II"); df_anova_perc2 <- as.data.frame(anova_perc_type2); df_anova_perc2$Significance <- ifelse(df_anova_perc2$`Pr(>Chisq)` < alfa, "Significant", "Not Significant"); print(df_anova_perc2)
+    if (df_anova_perc2["wave", "Pr(>Chisq)"] < 0.05) { emm_perc_wave <- emmeans(modelo_perc, specs = pairwise ~ wave, adjust = "tukey"); df_emm_perc_wave <- as.data.frame(emm_perc_wave$contrasts); df_emm_perc_wave$Significance <- ifelse(df_emm_perc_wave$p.value < alfa, "Significant", "Not Significant"); print(df_emm_perc_wave); write.csv(df_emm_perc_wave, "analysis_results/table_contrasts_wave_percentage.csv", row.names = FALSE) }
+    if (df_anova_perc2["Trajetoria", "Pr(>Chisq)"] < 0.05) { emm_perc_traj <- emmeans(modelo_perc, specs = pairwise ~ Trajetoria, adjust = "tukey"); df_emm_perc_traj <- as.data.frame(emm_perc_traj$contrasts); df_emm_perc_traj$Significance <- ifelse(df_emm_perc_traj$p.value < alfa, "Significant", "Not Significant"); print(df_emm_perc_traj); write.csv(df_emm_perc_traj, "analysis_results/table_contrasts_trajectory_percentage.csv", row.names = FALSE) }
+  }
+  cat("\n--- 3.4. Model Diagnostics (Percentage) ---\n")
+  cat("Assessing VIF on a model without the interaction term to prevent artificial inflation:\n")
+  modelo_perc_vif <- glmmTMB(percentage_prop ~ wave + Trajetoria + (1 | subjectid), data = nanosight_intersect, family = beta_family(link = "logit"))
+  vif_df_perc <- as.data.frame(check_collinearity(modelo_perc_vif)); vif_df_perc$Interpretation <- ifelse(vif_df_perc$VIF >= 10, "High", ifelse(vif_df_perc$VIF >= 5, "Moderate", "Low")); icc_perc <- icc(modelo_perc)
+  cat("VIF:\n"); print(vif_df_perc); write.csv(vif_df_perc, "analysis_results/table_vif_percentage.csv", row.names = FALSE)
+  cat("\nICC:\n"); print(icc_perc)
+  cat("\n--- 3.5. DHARMa Residual Diagnostics (Percentage) ---\n")
+  residuos_perc <- simulateResiduals(fittedModel = modelo_perc); tabela_diag_perc <- criar_tabela_diagnostico_dharma_qq(residuos_perc)
+  png("analysis_results/plot_diagnostics_percentage.png", width = 1000, height = 500); par(mfrow = c(1, 2)); plotQQunif(residuos_perc, main = "A) QQ Plot - Percentage", testUniformity = FALSE, testDispersion = FALSE, testOutliers = FALSE); plotResiduals(residuos_perc, main = "B) Residuals vs. Predicted - Percentage"); dev.off()
+  print(tabela_diag_perc); write.csv(tabela_diag_perc, "analysis_results/table_diagnostics_dharma_percentage.csv", row.names = FALSE)
+  
+  #===============================================================================#
+  # SECÇÃO FINAL: TABELA RESUMO DE AIC/BIC
+  #===============================================================================#
+  cat("\n\n=========================================================\n"); cat("  SUMMARY TABLE: AIC/BIC OF FINAL MODELS\n"); cat("=========================================================\n\n")
+  print(resultados_finais_aic_bic)
+  write.csv(resultados_finais_aic_bic, "analysis_results/table_summary_aic_bic_final.csv", row.names = FALSE)
+  
+}, finally = {
+  #-------------------------------------------------------------------------------
+  # SECÇÃO FINAL: FECHAR O FICHEIRO DE LOG
+  #-------------------------------------------------------------------------------
+  cat("\n\n### FIM DO LOG DE ANÁLISE ###\n")
+  cat("Todos os resultados foram salvos no diretório 'analysis_results'.\n")
+  cat("O log completo desta sessão foi salvo em:", log_file_name, "\n")
+  sink() # Fecha a conexão com o ficheiro de log e restaura a saída para a consola
+})
 
-##Teste de Tukey para comparações múltiplas entre as trajetórias
-#Tamanho para batch e Trajetória na w1
-nanosight_intersect_conc_nan_w1$batch_nan <- as.factor(nanosight_intersect_conc_nan_w1$batch_nan)
-nanosight_intersect_conc_nan_w1$Trajetoria <- as.factor(nanosight_intersect_conc_nan_w1$Trajetoria)
-tukey_tam_batch_traj_w1 <- tukey_hsd(anova_tam_batch_traj_w1, "Trajetoria:batch_nan")
-summary(tukey_tam_batch_traj_w1)
-#Tamanho para batch e Trajetória na w2
-nanosight_intersect_conc_nan_w2$batch_nan <- as.factor(nanosight_intersect_conc_nan_w2$batch_nan)
-nanosight_intersect_conc_nan_w2$Trajetoria <- as.factor(nanosight_intersect_conc_nan_w2$Trajetoria)
-tukey_tam_batch_traj_w2 <- tukey_hsd(anova_tam_batch_traj_w2, "Trajetoria:batch_nan")
-summary(tukey_tam_batch_traj_w2)
-#Porcentagem para batch e Trajetória na w1
-nanosight_intersect_conc_nan_w1$batch_nan <- as.factor(nanosight_intersect_conc_nan_w1$batch_nan)
-nanosight_intersect_conc_nan_w1$Trajetoria <- as.factor(nanosight_intersect_conc_nan_w1$Trajetoria)
-tukey_porc_batch_traj_w1 <- tukey_hsd(anova_porc_batch_traj_w1, "Trajetoria:batch_nan")
-summary(tukey_porc_batch_traj_w1)
-#Porcentagem para batch e Trajetória na w2
-nanosight_intersect_conc_nan_w2$batch_nan <- as.factor(nanosight_intersect_conc_nan_w2$batch_nan)
-nanosight_intersect_conc_nan_w2$Trajetoria <- as.factor(nanosight_intersect_conc_nan_w2$Trajetoria)
-tukey_porc_batch_traj_w2 <- tukey_hsd(anova_porc_batch_traj_w2, "Trajetoria:batch_nan")
-summary(tukey_porc_batch_traj_w2)
-#Concentração para batch e Trajetória na w1
-nanosight_intersect_conc_nan_w1$batch_nan <- as.factor(nanosight_intersect_conc_nan_w1$batch_nan)
-nanosight_intersect_conc_nan_w1$Trajetoria <- as.factor(nanosight_intersect_conc_nan_w1$Trajetoria)
-tukey_conc_batch_traj_w1 <- tukey_hsd(anova_conc_batch_traj_w1, "Trajetoria:batch_nan")
-summary(tukey_conc_batch_traj_w1)
-#Concentração para batch e Trajetória na w2
-nanosight_intersect_conc_nan_w2$batch_nan <- as.factor(nanosight_intersect_conc_nan_w2$batch_nan)
-nanosight_intersect_conc_nan_w2$Trajetoria <- as.factor(nanosight_intersect_conc_nan_w2$Trajetoria)
-tukey_conc_batch_traj_w2 <- tukey_hsd(anova_conc_batch_traj_w2, "Trajetoria:batch_nan")
-summary(tukey_conc_batch_traj_w2)
-###Tabela dos resultados dos testes de Tukey
-# Adicionar uma coluna de origem em cada tabela antes de combinar
-tukey_tam_batch_traj_w1$Source <- "Tamanho - w1"
-tukey_tam_batch_traj_w2$Source <- "Tamanho - w2"
-tukey_porc_batch_traj_w1$Source <- "Porcentagem - w1"
-tukey_porc_batch_traj_w2$Source <- "Porcentagem - w2"
-tukey_conc_batch_traj_w1$Source <- "Concentração - w1"
-tukey_conc_batch_traj_w2$Source <- "Concentração - w2"
-#Tamanho na w1
-tukey_tamanho_W1 <- tukey_tam_batch_traj_w1
-tukey_tamanho_W1 <- tukey_tamanho_W1[, c("Source", setdiff(colnames(tukey_tamanho_W1), "Source"))] #Source na 1a coluna
-pdf("plots/tukey_tamanho_w1.pdf", width = 15, height = 25)
-grid.newpage()  # Inicia uma nova página para o gráfico
-grid.text("Tukey Test - Mean Size - w1", x = 0.5, y = 0.9, gp = gpar(fontsize = 16, fontface = "bold"))  # Título no topo da página
-grid.table(tukey_tamanho_W1)
-dev.off()
-#Tamanho na w2
-tukey_tamanho_W2 <- tukey_tam_batch_traj_w2
-tukey_tamanho_W2 <- tukey_tamanho_W2[, c("Source", setdiff(colnames(tukey_tamanho_W2), "Source"))] #Source na 1a coluna
-pdf("plots/tukey_tamanho_w2.pdf", width = 15, height = 25)
-grid.newpage()  # Inicia uma nova página para o gráfico
-grid.text("Tukey Test - Mean Size - w2", x = 0.5, y = 0.9, gp = gpar(fontsize = 16, fontface = "bold"))  # Título no topo da página
-grid.table(tukey_tamanho_W2)
-dev.off()
-#Porcentagem na w1
-tukey_porcentagem_W1 <- tukey_tam_batch_traj_w1
-tukey_porcentagem_W1 <- tukey_porcentagem_W1[, c("Source", setdiff(colnames(tukey_porcentagem_W1), "Source"))] #Source na 1a coluna
-pdf("plots/tukey_porcentagem_w1.pdf", width = 15, height = 25)
-grid.newpage()  # Inicia uma nova página para o gráfico
-grid.text("Tukey Test - Percentage of Small EV's - w1", x = 0.5, y = 0.9, gp = gpar(fontsize = 16, fontface = "bold"))  # Título no topo da página
-grid.table(tukey_porcentagem_W1)
-dev.off()
-#Porcentagem na w2
-tukey_porcentagem_W2 <- tukey_tam_batch_traj_w2
-tukey_porcentagem_W2 <- tukey_porcentagem_W2[, c("Source", setdiff(colnames(tukey_porcentagem_W2), "Source"))] #Source na 1a coluna
-pdf("plots/tukey_porcentagem_w2.pdf", width = 15, height = 25)
-grid.newpage()  # Inicia uma nova página para o gráfico
-grid.text("Tukey Test - Percentage of Small EV's - w2", x = 0.5, y = 0.9, gp = gpar(fontsize = 16, fontface = "bold"))  # Título no topo da página
-grid.table(tukey_porcentagem_W2)
-dev.off()
-#Concentração na w1
-tukey_concentracao_W1 <- tukey_tam_batch_traj_w1
-tukey_concentracao_W1 <- tukey_concentracao_W1[, c("Source", setdiff(colnames(tukey_concentracao_W1), "Source"))] #Source na 1a coluna
-pdf("plots/tukey_concentracao_w1.pdf", width = 15, height = 25)
-grid.newpage()  # Inicia uma nova página para o gráfico
-grid.text("Tukey Test - Concentration of particles - w1", x = 0.5, y = 0.9, gp = gpar(fontsize = 16, fontface = "bold"))  # Título no topo da página
-grid.table(tukey_concentracao_W1)
-dev.off()
-#Concentração na w2
-tukey_concentracao_W2 <- tukey_tam_batch_traj_w2
-tukey_concentracao_W2 <- tukey_concentracao_W2[, c("Source", setdiff(colnames(tukey_concentracao_W2), "Source"))] #Source na 1a coluna
-pdf("plots/tukey_concentracao_w2.pdf", width = 15, height = 25)
-grid.newpage()  # Inicia uma nova página para o gráfico
-grid.text("Tukey Test - Concentration of particles - w2", x = 0.5, y = 0.9, gp = gpar(fontsize = 16, fontface = "bold"))  # Título no topo da página
-grid.table(tukey_concentracao_W2)
-dev.off()
 
-################# Mais uma tentativa considerando o número de amostras de Trajetoria na batch
+#tentando resolver levene %
+modelo_perc_random_slope <- glmmTMB(percentage_prop ~ wave * Trajetoria + (wave | subjectid), 
+                                    data = nanosight_intersect, 
+                                    family = beta_family(link = "logit"))
 
+# Diagnosticar o novo modelo
+residuos_novo <- simulateResiduals(fittedModel = modelo_perc_random_slope)
+plot(residuos_novo) # Veja se o Levene melhorou
