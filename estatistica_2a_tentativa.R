@@ -1,17 +1,13 @@
-#=============================================================================#
-#   SCRIPT DE ANÁLISE COMPLETO E FINAL - VERSÃO 14 (LÓGICA V13 + GRÁFICOS V12) #
-#=============================================================================#
-
 #-------------------------------------------------------------------------------
-# SECÇÃO -1: DEFINIR O DIRETÓRIO DE TRABALHO
+# SET WORKING DIRECTORY
 #-------------------------------------------------------------------------------
-# !!! IMPORTANTE: EDITE ESTA LINHA !!!
+# !!! IMPORTANT: EDIT THIS !!!
 project_directory <- "D:/vesiculas/"
 tryCatch({ setwd(project_directory); cat("Working directory successfully set to:\n", getwd(), "\n\n")}, 
          error = function(e) { stop("ERROR: The specified directory was not found. Please check the path.") })
 
 #-------------------------------------------------------------------------------
-# SECÇÃO 0: CONFIGURAÇÃO DO AMBIENTE E PACOTES
+# ENVIRONMENT AND PACKAGES
 #-------------------------------------------------------------------------------
 cat("--- SECTION 0: SETTING UP THE ENVIRONMENT ---\n")
 pacotes_necessarios <- c("lme4", "lmerTest", "glmmTMB", "car", "emmeans", 
@@ -25,20 +21,19 @@ if (!dir.exists("analysis_results")) { dir.create("analysis_results") }
 cat("Packages loaded and results directory is ready.\n\n")
 
 #-------------------------------------------------------------------------------
-# SECÇÃO 0.5: CONFIGURAR O FICHEIRO DE LOG
+# LOG
 #-------------------------------------------------------------------------------
 log_file_name <- paste0("analysis_results/log_analise_", Sys.Date(), ".txt")
-sink(log_file_name, append = FALSE, split = TRUE) # 'split = TRUE' mostra a saída na consola E guarda no ficheiro
+sink(log_file_name, append = FALSE, split = TRUE) # 'split = TRUE' saves in log file and outputs in console
 
 cat("### INÍCIO DO LOG DE ANÁLISE ###\n")
 cat("Data e Hora:", as.character(Sys.time()), "\n")
 cat("Diretório de Trabalho:", getwd(), "\n\n")
 
-# Usar tryCatch para garantir que o log é sempre fechado, mesmo se ocorrer um erro
 tryCatch({
   
   #-------------------------------------------------------------------------------
-  # SECÇÃO 1: CARREGAMENTO E PREPARAÇÃO DOS DADOS
+  # LOADING AND PREPARING DATA
   #-------------------------------------------------------------------------------
   cat("--- SECTION 1: LOADING AND PREPARING DATA ---\n")
   tryCatch({
@@ -62,9 +57,9 @@ tryCatch({
   cat("Data preparation complete.\n\n")
   
   #-------------------------------------------------------------------------------
-  # FUNÇÕES AUXILIARES
+  # HELPER FUNCTIONS
   #-------------------------------------------------------------------------------
-  # Função para criar tabela de diagnóstico DHARMa (APENAS TESTES DO QQ PLOT)
+  # CREATE DHARMa diagonosis table 
   criar_tabela_diagnostico_dharma_qq <- function(simulationOutput) {
     alfa <- 0.05
     teste_uniformidade <- testUniformity(simulationOutput, plot = FALSE); teste_dispersao <- testDispersion(simulationOutput, plot = FALSE); teste_outliers <- testOutliers(simulationOutput, plot = FALSE)
@@ -77,7 +72,7 @@ tryCatch({
   alfa <- 0.05 
   
   #===============================================================================#
-  # MODELO 1: ANÁLISE DO TAMANHO MÉDIO DAS VEs (Size)
+  # MODEL 1: EV's Sizes
   #===============================================================================#
   cat("\n\n=========================================================\n"); cat("  ANALYSIS 1: EV MEAN SIZE (tamanho_mean_average)\n"); cat("=========================================================\n\n")
   cat("--- 1.1. Comparing Gaussian (LMM) and Gamma (GLMM) models ---\n")
@@ -117,7 +112,7 @@ tryCatch({
   cat("\nICC:\n"); print(icc_size)
   
   #===============================================================================#
-  # MODELO 2: ANÁLISE DA CONCENTRAÇÃO DAS VEs
+  # MODEL 2: EV's concentration
   #===============================================================================#
   cat("\n\n====================================================================\n"); cat("  ANALYSIS 2: EV CONCENTRATION (concentracao_real)\n"); cat("====================================================================\n\n")
   cat("--- 2.1. Model Simplification Process for Concentration ---\n")
@@ -140,7 +135,7 @@ tryCatch({
   print(tabela_diag_conc); write.csv(tabela_diag_conc, "analysis_results/table_diagnostics_dharma_concentration.csv", row.names = FALSE)
   
   #===============================================================================#
-  # MODELO 3: ANÁLISE DA PERCENTAGEM DE VEs PEQUENAS
+  # MODEL 3: SMALL EVs percentages
   #===============================================================================#
   cat("\n\n======================================================================\n"); cat("  ANALYSIS 3: PERCENTAGE OF SMALL EVs (EV_pequenas_porcentagem)\n"); cat("======================================================================\n\n")
   cat("--- 3.1. Fitting the Beta GLMM for Percentage ---\n")
@@ -172,7 +167,7 @@ tryCatch({
   print(tabela_diag_perc); write.csv(tabela_diag_perc, "analysis_results/table_diagnostics_dharma_percentage.csv", row.names = FALSE)
   
   #===============================================================================#
-  # SECÇÃO FINAL: TABELA RESUMO DE AIC/BIC
+  # AIC/BIC
   #===============================================================================#
   cat("\n\n=========================================================\n"); cat("  SUMMARY TABLE: AIC/BIC OF FINAL MODELS\n"); cat("=========================================================\n\n")
   print(resultados_finais_aic_bic)
@@ -180,20 +175,10 @@ tryCatch({
   
 }, finally = {
   #-------------------------------------------------------------------------------
-  # SECÇÃO FINAL: FECHAR O FICHEIRO DE LOG
+  # LOG
   #-------------------------------------------------------------------------------
   cat("\n\n### FIM DO LOG DE ANÁLISE ###\n")
   cat("Todos os resultados foram salvos no diretório 'analysis_results'.\n")
   cat("O log completo desta sessão foi salvo em:", log_file_name, "\n")
-  sink() # Fecha a conexão com o ficheiro de log e restaura a saída para a consola
-})
-
-
-#tentando resolver levene %
-modelo_perc_random_slope <- glmmTMB(percentage_prop ~ wave * Trajetoria + (wave | subjectid), 
-                                    data = nanosight_intersect, 
-                                    family = beta_family(link = "logit"))
-
-# Diagnosticar o novo modelo
-residuos_novo <- simulateResiduals(fittedModel = modelo_perc_random_slope)
-plot(residuos_novo) # Veja se o Levene melhorou
+  sink() 
+}
