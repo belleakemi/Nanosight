@@ -1,14 +1,9 @@
-#-------------------------------------------------------------------------------
 # SET WORKING DIRECTORY
-#-------------------------------------------------------------------------------
-# !!! IMPORTANT: EDIT THIS !!!
-project_directory <- "D:/vesiculas/"
+project_directory <- "C:/Users/Belle/Documents/Belle - Nanosight/dados_raw"
 tryCatch({ setwd(project_directory); cat("Working directory successfully set to:\n", getwd(), "\n\n")}, 
          error = function(e) { stop("ERROR: The specified directory was not found. Please check the path.") })
 
-#-------------------------------------------------------------------------------
 # ENVIRONMENT AND PACKAGES
-#-------------------------------------------------------------------------------
 cat("--- SECTION 0: SETTING UP THE ENVIRONMENT ---\n")
 pacotes_necessarios <- c("lme4", "lmerTest", "glmmTMB", "car", "emmeans", 
                          "performance", "DHARMa")
@@ -20,9 +15,7 @@ for (pacote in pacotes_necessarios) {
 if (!dir.exists("analysis_results")) { dir.create("analysis_results") }
 cat("Packages loaded and results directory is ready.\n\n")
 
-#-------------------------------------------------------------------------------
 # LOG
-#-------------------------------------------------------------------------------
 log_file_name <- paste0("analysis_results/log_analise_", Sys.Date(), ".txt")
 sink(log_file_name, append = FALSE, split = TRUE) # 'split = TRUE' saves in log file and outputs in console
 
@@ -32,9 +25,7 @@ cat("Diretório de Trabalho:", getwd(), "\n\n")
 
 tryCatch({
   
-  #-------------------------------------------------------------------------------
   # LOADING AND PREPARING DATA
-  #-------------------------------------------------------------------------------
   cat("--- SECTION 1: LOADING AND PREPARING DATA ---\n")
   tryCatch({
     nanosight_intersect <- read.csv("nanosight_intersect.csv")
@@ -56,9 +47,7 @@ tryCatch({
   }
   cat("Data preparation complete.\n\n")
   
-  #-------------------------------------------------------------------------------
   # HELPER FUNCTIONS
-  #-------------------------------------------------------------------------------
   # CREATE DHARMa diagonosis table 
   criar_tabela_diagnostico_dharma_qq <- function(simulationOutput) {
     alfa <- 0.05
@@ -71,9 +60,7 @@ tryCatch({
   resultados_finais_aic_bic <- data.frame()
   alfa <- 0.05 
   
-  #===============================================================================#
   # MODEL 1: EV's Sizes
-  #===============================================================================#
   cat("\n\n=========================================================\n"); cat("  ANALYSIS 1: EV MEAN SIZE (tamanho_mean_average)\n"); cat("=========================================================\n\n")
   cat("--- 1.1. Comparing Gaussian (LMM) and Gamma (GLMM) models ---\n")
   modelo_size_gaussiano <- lmer(tamanho_mean_average ~ wave * Trajetoria + (1 | subjectid), data = nanosight_intersect)
@@ -82,10 +69,10 @@ tryCatch({
   print(tabela_comp_size); write.csv(tabela_comp_size, "analysis_results/table_model_comparison_size.csv", row.names = FALSE)
   cat("\n--- 1.2. DHARMa Residual Diagnostics for BOTH models ---\n")
   residuos_gamma <- simulateResiduals(fittedModel = modelo_size_gamma); tabela_diag_gamma <- criar_tabela_diagnostico_dharma_qq(residuos_gamma)
-  png("analysis_results/plot_diagnostics_size_GAMMA.png", width = 1000, height = 500); par(mfrow = c(1, 2)); plotQQunif(residuos_gamma, main = "A) QQ Plot - Size (Gamma)", testUniformity = FALSE, testDispersion = FALSE, testOutliers = FALSE); plotResiduals(residuos_gamma, main = "B) Residuals vs. Predicted - Size (Gamma)"); dev.off()
+  png("analysis_results/plot_diagnostics_size_GAMMA.png", width = 3000, height = 1000, res = 300);  par(mfrow = c(1, 2), mar = c(4, 4, 3, 1) + 0.1, oma = c(0, 0, 1, 0), cex = 1); plotQQunif(residuos_gamma, main = "A) QQ Plot - Size (Gamma)", testUniformity = FALSE, testDispersion = FALSE, testOutliers = FALSE); plotResiduals(residuos_gamma, main = "B) Residuals vs. Predicted - Size (Gamma)"); dev.off()
   cat("Diagnostics for Gamma Model:\n"); print(tabela_diag_gamma); write.csv(tabela_diag_gamma, "analysis_results/table_diagnostics_dharma_size_GAMMA.csv", row.names = FALSE)
   residuos_gaussiano <- simulateResiduals(fittedModel = modelo_size_gaussiano); tabela_diag_gaussiano <- criar_tabela_diagnostico_dharma_qq(residuos_gaussiano)
-  png("analysis_results/plot_diagnostics_size_GAUSSIAN.png", width = 1000, height = 500); par(mfrow = c(1, 2)); plotQQunif(residuos_gaussiano, main = "A) QQ Plot - Size (Gaussian)", testUniformity = FALSE, testDispersion = FALSE, testOutliers = FALSE); plotResiduals(residuos_gaussiano, main = "B) Residuals vs. Predicted - Size (Gaussian)"); dev.off()
+  png("analysis_results/plot_diagnostics_size_GAUSSIAN.png", width = 3000, height = 1000, res = 300); par(mfrow = c(1, 2), mar = c(4, 4, 3, 1) + 0.1, oma = c(0, 0, 1, 0), cex = 1); plotQQunif(residuos_gaussiano, main = "A) QQ Plot - Size (Gaussian)", testUniformity = FALSE, testDispersion = FALSE, testOutliers = FALSE); plotResiduals(residuos_gaussiano, main = "B) Residuals vs. Predicted - Size (Gaussian)"); dev.off()
   cat("\nDiagnostics for Gaussian Model:\n"); print(tabela_diag_gaussiano); write.csv(tabela_diag_gaussiano, "analysis_results/table_diagnostics_dharma_size_GAUSSIAN.csv", row.names = FALSE)
   modelo_size <- modelo_size_gaussiano
   cat("\nFinal Model Selected: Gaussian (LMM), based on lower AIC/BIC and adequate diagnostics.\n")
@@ -111,9 +98,7 @@ tryCatch({
   cat("VIF:\n"); print(vif_df_size); write.csv(vif_df_size, "analysis_results/table_vif_size.csv", row.names = FALSE)
   cat("\nICC:\n"); print(icc_size)
   
-  #===============================================================================#
   # MODEL 2: EV's concentration
-  #===============================================================================#
   cat("\n\n====================================================================\n"); cat("  ANALYSIS 2: EV CONCENTRATION (concentracao_real)\n"); cat("====================================================================\n\n")
   cat("--- 2.1. Model Simplification Process for Concentration ---\n")
   modelo_conc <- NULL; cat("\nAttempt 1: Full Negative Binomial GLMM...\n")
@@ -131,12 +116,10 @@ tryCatch({
   cat("VIF:\n"); print(vif_df_conc); write.csv(vif_df_conc, "analysis_results/table_vif_concentration.csv", row.names = FALSE); cat("\nICC:\nNot applicable (GLM without random effects).\n")
   cat("\n--- 2.5. DHARMa Residual Diagnostics (Concentration) ---\n")
   residuos_conc <- simulateResiduals(fittedModel = modelo_conc); tabela_diag_conc <- criar_tabela_diagnostico_dharma_qq(residuos_conc)
-  png("analysis_results/plot_diagnostics_concentration.png", width = 1000, height = 500); par(mfrow = c(1, 2)); plotQQunif(residuos_conc, main = "A) QQ Plot - Concentration", testUniformity = FALSE, testDispersion = FALSE, testOutliers = FALSE); plotResiduals(residuos_conc, main = "B) Residuals vs. Predicted - Concentration"); dev.off()
+  png("analysis_results/plot_diagnostics_concentration.png", width = 3000, height = 1000, res = 300); par(mfrow = c(1, 2), mar = c(4, 4, 3, 1) + 0.1, oma = c(0, 0, 1, 0), cex = 1); plotQQunif(residuos_conc, main = "A) QQ Plot - Concentration", testUniformity = FALSE, testDispersion = FALSE, testOutliers = FALSE); plotResiduals(residuos_conc, main = "B) Residuals vs. Predicted - Concentration"); dev.off()
   print(tabela_diag_conc); write.csv(tabela_diag_conc, "analysis_results/table_diagnostics_dharma_concentration.csv", row.names = FALSE)
   
-  #===============================================================================#
   # MODEL 3: SMALL EVs percentages
-  #===============================================================================#
   cat("\n\n======================================================================\n"); cat("  ANALYSIS 3: PERCENTAGE OF SMALL EVs (EV_pequenas_porcentagem)\n"); cat("======================================================================\n\n")
   cat("--- 3.1. Fitting the Beta GLMM for Percentage ---\n")
   modelo_perc <- glmmTMB(percentage_prop ~ wave * Trajetoria + (1 | subjectid), data = nanosight_intersect, family = beta_family(link = "logit"))
@@ -163,22 +146,19 @@ tryCatch({
   cat("\nICC:\n"); print(icc_perc)
   cat("\n--- 3.5. DHARMa Residual Diagnostics (Percentage) ---\n")
   residuos_perc <- simulateResiduals(fittedModel = modelo_perc); tabela_diag_perc <- criar_tabela_diagnostico_dharma_qq(residuos_perc)
-  png("analysis_results/plot_diagnostics_percentage.png", width = 1000, height = 500); par(mfrow = c(1, 2)); plotQQunif(residuos_perc, main = "A) QQ Plot - Percentage", testUniformity = FALSE, testDispersion = FALSE, testOutliers = FALSE); plotResiduals(residuos_perc, main = "B) Residuals vs. Predicted - Percentage"); dev.off()
+  png("analysis_results/plot_diagnostics_percentage.png", width = 3000, height = 1000, res = 300); par(mfrow = c(1, 2), mar = c(4, 4, 3, 1) + 0.1, oma = c(0, 0, 1, 0), cex = 1); plotQQunif(residuos_perc, main = "A) QQ Plot - Percentage", testUniformity = FALSE, testDispersion = FALSE, testOutliers = FALSE); plotResiduals(residuos_perc, main = "B) Residuals vs. Predicted - Percentage"); dev.off()
   print(tabela_diag_perc); write.csv(tabela_diag_perc, "analysis_results/table_diagnostics_dharma_percentage.csv", row.names = FALSE)
   
-  #===============================================================================#
   # AIC/BIC
-  #===============================================================================#
   cat("\n\n=========================================================\n"); cat("  SUMMARY TABLE: AIC/BIC OF FINAL MODELS\n"); cat("=========================================================\n\n")
   print(resultados_finais_aic_bic)
   write.csv(resultados_finais_aic_bic, "analysis_results/table_summary_aic_bic_final.csv", row.names = FALSE)
   
 }, finally = {
-  #-------------------------------------------------------------------------------
   # LOG
-  #-------------------------------------------------------------------------------
   cat("\n\n### FIM DO LOG DE ANÁLISE ###\n")
   cat("Todos os resultados foram salvos no diretório 'analysis_results'.\n")
   cat("O log completo desta sessão foi salvo em:", log_file_name, "\n")
   sink() 
 }
+)
